@@ -17,7 +17,7 @@ pub fn build(b: *std.Build) void {
 
     const lib = b.addSharedLibrary(.{
         .name = "zscene",
-        .root_source_file = .{ .path = "src/zscene.zig" },
+        .root_source_file = b.path("src/zscene.zig"),
         .target = target,
         .optimize = optimize,
 

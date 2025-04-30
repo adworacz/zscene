@@ -9,6 +9,7 @@ const ar = vs.ActivationReason;
 const rp = vs.RequestPattern;
 const fm = vs.FilterMode;
 const st = vs.SampleType;
+const ZAPI = vapoursynth.ZAPI;
 
 // https://ziglang.org/documentation/master/#Choosing-an-Allocator
 //
@@ -29,22 +30,22 @@ const ReadScenesData = struct {
 fn getFrame(n: c_int, activation_reason: ar, instance_data: ?*anyopaque, frame_data: ?*?*anyopaque, frame_ctx: ?*vs.FrameContext, core: ?*vs.Core, vsapi: ?*const vs.API) callconv(.C) ?*const vs.Frame {
     // Assign frame_data to nothing to stop compiler complaints
     _ = frame_data;
-
+    const zapi = ZAPI.init(vsapi);
     const d: *ReadScenesData = @ptrCast(@alignCast(instance_data));
 
     if (activation_reason == ar.Initial) {
-        vsapi.?.requestFrameFilter.?(n, d.node, frame_ctx);
+        zapi.requestFrameFilter(n, d.node, frame_ctx);
     } else if (activation_reason == ar.AllFramesReady) {
-        const src_frame = vsapi.?.getFrameFilter.?(n, d.node, frame_ctx);
-        defer vsapi.?.freeFrame.?(src_frame);
+        const src_frame = zapi.initZFrame(d.node, n, frame_ctx, core);
+        defer src_frame.deinit();
 
-        const dst = vsapi.?.copyFrame.?(src_frame, core);
-        const props = vsapi.?.getFramePropertiesRW.?(dst);
+        const dst = src_frame.copyFrame();
+        const props = dst.getPropertiesRW();
 
-        _ = vsapi.?.mapSetInt.?(props, "_SceneChangePrev", @intFromBool(d.frames_set.contains(@intCast(n))), vs.MapAppendMode.Replace);
-        _ = vsapi.?.mapSetInt.?(props, "_SceneChangeNext", @intFromBool(d.frames_set.contains(@intCast(n + 1))), vs.MapAppendMode.Replace);
+        props.setInt("_SceneChangePrev", @intFromBool(d.frames_set.contains(@intCast(n))), .Replace);
+        props.setInt("_SceneChangeNext", @intFromBool(d.frames_set.contains(@intCast(n + 1))), .Replace);
 
-        return dst;
+        return dst.frame;
     }
 
     return null;
@@ -71,18 +72,17 @@ export fn readScenesCreate(in: ?*const vs.Map, out: ?*vs.Map, user_data: ?*anyop
     _ = user_data;
     var d: ReadScenesData = undefined;
 
-    // TODO: Add error handling.
-    var err: vs.MapPropertyError = undefined;
+    const zapi = ZAPI.init(vsapi);
+    const map_in = zapi.initZMap(in);
+    const map_out = zapi.initZMap(out);
 
-    d.node = vsapi.?.mapGetNode.?(in, "clip", 0, &err).?;
-    d.vi = vsapi.?.getVideoInfo.?(d.node);
+    d.node, d.vi = map_in.getNodeVi("clip");
 
-    const path_len: usize = @intCast(vsapi.?.mapGetDataSize.?(in, "path", 0, &err));
-    const path = vsapi.?.mapGetData.?(in, "path", 0, &err)[0..path_len];
+    const path = map_in.getData("path", 0) orelse unreachable;
 
     const file = std.fs.cwd().openFile(path, .{ .mode = .read_only }) catch {
-        vsapi.?.mapSetError.?(out, "ReadScenes: Unable to read the provided scene file.");
-        vsapi.?.freeNode.?(d.node);
+        map_out.setError("ReadScenes: Unable to read the provided scene file.");
+        zapi.freeNode(d.node);
         return;
     };
     defer file.close();
@@ -93,15 +93,15 @@ export fn readScenesCreate(in: ?*const vs.Map, out: ?*vs.Map, user_data: ?*anyop
     defer json_reader.deinit();
 
     const json = std.json.parseFromTokenSource(ScenesJson, allocator, &json_reader, .{}) catch {
-        vsapi.?.mapSetError.?(out, "ReadScenes: Unable to parse the scene json data.");
-        vsapi.?.freeNode.?(d.node);
+        map_out.setError("ReadScenes: Unable to parse the scene json data.");
+        zapi.freeNode(d.node);
         return;
     };
     defer json.deinit();
 
     if (d.vi.numFrames != json.value.frame_count) {
-        vsapi.?.mapSetError.?(out, "ReadScenes: Frame count in scenes file does not match clip. Make sure you're using the correct scene file for the given clip.");
-        vsapi.?.freeNode.?(d.node);
+        map_out.setError("ReadScenes: Frame count in scenes file does not match clip. Make sure you're using the correct scene file for the given clip.");
+        zapi.freeNode(d.node);
         return;
     }
 
@@ -109,8 +109,8 @@ export fn readScenesCreate(in: ?*const vs.Map, out: ?*vs.Map, user_data: ?*anyop
 
     d.frames_set = FramesSet{};
     d.frames_set.ensureTotalCapacity(allocator, scenes.len) catch {
-        vsapi.?.mapSetError.?(out, "ReadScenes: Unable to allocate space for frame set.");
-        vsapi.?.freeNode.?(d.node);
+        map_out.setError("ReadScenes: Unable to allocate space for frame set.");
+        zapi.freeNode(d.node);
         return;
     };
 
@@ -121,14 +121,14 @@ export fn readScenesCreate(in: ?*const vs.Map, out: ?*vs.Map, user_data: ?*anyop
     const data: *ReadScenesData = allocator.create(ReadScenesData) catch unreachable;
     data.* = d;
 
-    var deps = [_]vs.FilterDependency{
+    const deps = [_]vs.FilterDependency{
         vs.FilterDependency{
             .source = d.node,
             .requestPattern = rp.StrictSpatial,
         },
     };
 
-    vsapi.?.createVideoFilter.?(out, "ReadScenes", d.vi, getFrame, readScenesFree, fm.Parallel, &deps, deps.len, data, core);
+    zapi.createVideoFilter(out, "ReadScenes", d.vi, getFrame, readScenesFree, .Parallel, &deps, data, core);
 }
 
 pub fn registerFunction(plugin: *vs.Plugin, vsapi: *const vs.PLUGINAPI) void {
