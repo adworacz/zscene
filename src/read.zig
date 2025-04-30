@@ -42,7 +42,7 @@ fn getFrame(n: c_int, activation_reason: ar, instance_data: ?*anyopaque, frame_d
         const props = vsapi.?.getFramePropertiesRW.?(dst);
 
         _ = vsapi.?.mapSetInt.?(props, "_SceneChangePrev", @intFromBool(d.frames_set.contains(@intCast(n))), vs.MapAppendMode.Replace);
-        _ = vsapi.?.mapSetInt.?(props, "_SceneChangeNext", @intFromBool(d.frames_set.contains(@intCast(n+1))), vs.MapAppendMode.Replace);
+        _ = vsapi.?.mapSetInt.?(props, "_SceneChangeNext", @intFromBool(d.frames_set.contains(@intCast(n + 1))), vs.MapAppendMode.Replace);
 
         return dst;
     }
@@ -61,7 +61,7 @@ export fn readScenesFree(instance_data: ?*anyopaque, core: ?*vs.Core, vsapi: ?*c
     allocator.destroy(d);
 }
 
-const ScenesJson = struct{
+const ScenesJson = struct {
     scene_changes: []u32,
     frame_count: u32,
     speed: f32,
@@ -91,7 +91,7 @@ export fn readScenesCreate(in: ?*const vs.Map, out: ?*vs.Map, user_data: ?*anyop
 
     var json_reader = std.json.reader(allocator, reader);
     defer json_reader.deinit();
-    
+
     const json = std.json.parseFromTokenSource(ScenesJson, allocator, &json_reader, .{}) catch {
         vsapi.?.mapSetError.?(out, "ReadScenes: Unable to parse the scene json data.");
         vsapi.?.freeNode.?(d.node);
