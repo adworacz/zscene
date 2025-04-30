@@ -99,6 +99,12 @@ export fn readScenesCreate(in: ?*const vs.Map, out: ?*vs.Map, user_data: ?*anyop
     };
     defer json.deinit();
 
+    if (d.vi.numFrames != json.value.frame_count) {
+        vsapi.?.mapSetError.?(out, "ReadScenes: Frame count in scenes file does not match clip. Make sure you're using the correct scene file for the given clip.");
+        vsapi.?.freeNode.?(d.node);
+        return;
+    }
+
     const scenes = json.value.scene_changes;
 
     d.frames_set = FramesSet{};
