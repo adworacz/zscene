@@ -1,6 +1,5 @@
 const std = @import("std");
 const vapoursynth = @import("vapoursynth");
-const testing = @import("std").testing;
 
 const vs = vapoursynth.vapoursynth4;
 const vsh = vapoursynth.vshelper;
