@@ -1,5 +1,6 @@
 const std = @import("std");
 const vapoursynth = @import("vapoursynth");
+const readScenes = @import("format.zig").readScenes;
 
 const vs = vapoursynth.vapoursynth4;
 const vsh = vapoursynth.vshelper;
@@ -10,10 +11,6 @@ const fm = vs.FilterMode;
 const st = vs.SampleType;
 const ZAPI = vapoursynth.ZAPI;
 
-// https://ziglang.org/documentation/master/#Choosing-an-Allocator
-//
-// Using the C allocator since we're passing pointers to allocated memory between Zig and C code,
-// specifically the filter data between the Create and GetFrame functions.
 const allocator = std.heap.c_allocator;
 
 const FramesSet = std.array_hash_map.AutoArrayHashMapUnmanaged(u32, void);
@@ -79,48 +76,21 @@ export fn readScenesCreate(in: ?*const vs.Map, out: ?*vs.Map, user_data: ?*anyop
 
     const path = map_in.getData("path", 0) orelse unreachable;
 
-    const file = std.fs.cwd().openFile(path, .{ .mode = .read_only }) catch {
-        map_out.setError("ReadScenes: Unable to read the provided scene file.");
+    var err: [:0]u8 = undefined;
+    const scene_data = readScenes(allocator, path, .scene_json, &err) catch {
+        map_out.setError(err);
         zapi.freeNode(d.node);
         return;
     };
-    defer file.close();
-
-    var buffer: [1024]u8 = undefined;
-    var reader = file.reader(&buffer);
-
-    var json_reader = std.json.Reader.init(allocator, &reader.interface);
-    var diagnostics = std.json.Diagnostics{};
-    json_reader.enableDiagnostics(&diagnostics);
-    defer json_reader.deinit();
-
-    const json = std.json.parseFromTokenSource(ScenesJson, allocator, &json_reader, .{}) catch {
-        const message = std.fmt.allocPrintSentinel(allocator, //
-            "ReadScenes: Unable to parse json - error parsing line {d}, column {d}", //
-            .{ diagnostics.getLine(), diagnostics.getColumn() }, 0) catch unreachable;
-
-        map_out.setError(message);
-        zapi.freeNode(d.node);
-        return;
-    };
-    defer json.deinit();
-
-    if (d.vi.numFrames != json.value.frame_count) {
-        map_out.setError("ReadScenes: Frame count in scenes file does not match clip. Make sure you're using the correct scene file for the given clip.");
-        zapi.freeNode(d.node);
-        return;
-    }
-
-    const scenes = json.value.scene_changes;
 
     d.frames_set = FramesSet{};
-    d.frames_set.ensureTotalCapacity(allocator, scenes.len) catch {
+    d.frames_set.ensureTotalCapacity(allocator, scene_data.scenes.len) catch {
         map_out.setError("ReadScenes: Unable to allocate space for frame set.");
         zapi.freeNode(d.node);
         return;
     };
 
-    for (scenes) |scene| {
+    for (scene_data.scenes) |scene| {
         d.frames_set.putAssumeCapacity(scene, {});
     }
 
