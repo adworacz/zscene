@@ -121,7 +121,7 @@ export fn readScenesCreate(in: ?*const vs.Map, out: ?*vs.Map, user_data: ?*anyop
     };
 
     for (scenes) |scene| {
-        d.frames_set.put(allocator, scene, {}) catch unreachable;
+        d.frames_set.putAssumeCapacity(scene, {});
     }
 
     const data: *ReadScenesData = allocator.create(ReadScenesData) catch unreachable;
