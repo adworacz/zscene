@@ -26,16 +26,16 @@ const ReadScenesData = struct {
     frames_set: FramesSet,
 };
 
-fn getFrame(n: c_int, activation_reason: ar, instance_data: ?*anyopaque, frame_data: ?*?*anyopaque, frame_ctx: ?*vs.FrameContext, core: ?*vs.Core, vsapi: ?*const vs.API) callconv(.C) ?*const vs.Frame {
+fn getFrame(n: c_int, activation_reason: ar, instance_data: ?*anyopaque, frame_data: ?*?*anyopaque, frame_ctx: ?*vs.FrameContext, core: ?*vs.Core, vsapi: ?*const vs.API) callconv(.c) ?*const vs.Frame {
     // Assign frame_data to nothing to stop compiler complaints
     _ = frame_data;
-    const zapi = ZAPI.init(vsapi);
+    const zapi = ZAPI.init(vsapi, core, frame_ctx);
     const d: *ReadScenesData = @ptrCast(@alignCast(instance_data));
 
     if (activation_reason == ar.Initial) {
-        zapi.requestFrameFilter(n, d.node, frame_ctx);
+        zapi.requestFrameFilter(n, d.node);
     } else if (activation_reason == ar.AllFramesReady) {
-        const src_frame = zapi.initZFrame(d.node, n, frame_ctx, core);
+        const src_frame = zapi.initZFrame(d.node, n);
         defer src_frame.deinit();
 
         const dst = src_frame.copyFrame();
@@ -50,7 +50,7 @@ fn getFrame(n: c_int, activation_reason: ar, instance_data: ?*anyopaque, frame_d
     return null;
 }
 
-export fn readScenesFree(instance_data: ?*anyopaque, core: ?*vs.Core, vsapi: ?*const vs.API) callconv(.C) void {
+export fn readScenesFree(instance_data: ?*anyopaque, core: ?*vs.Core, vsapi: ?*const vs.API) callconv(.c) void {
     _ = core;
     const d: *ReadScenesData = @ptrCast(@alignCast(instance_data));
     vsapi.?.freeNode.?(d.node);
@@ -67,15 +67,15 @@ const ScenesJson = struct {
     speed: f32,
 };
 
-export fn readScenesCreate(in: ?*const vs.Map, out: ?*vs.Map, user_data: ?*anyopaque, core: ?*vs.Core, vsapi: ?*const vs.API) callconv(.C) void {
+export fn readScenesCreate(in: ?*const vs.Map, out: ?*vs.Map, user_data: ?*anyopaque, core: ?*vs.Core, vsapi: ?*const vs.API) callconv(.c) void {
     _ = user_data;
     var d: ReadScenesData = undefined;
 
-    const zapi = ZAPI.init(vsapi);
+    const zapi = ZAPI.init(vsapi, core, null);
     const map_in = zapi.initZMap(in);
     const map_out = zapi.initZMap(out);
 
-    d.node, d.vi = map_in.getNodeVi("clip");
+    d.node, d.vi = map_in.getNodeVi("clip").?;
 
     const path = map_in.getData("path", 0) orelse unreachable;
 
@@ -86,13 +86,20 @@ export fn readScenesCreate(in: ?*const vs.Map, out: ?*vs.Map, user_data: ?*anyop
     };
     defer file.close();
 
-    const reader = file.reader();
+    var buffer: [1024]u8 = undefined;
+    var reader = file.reader(&buffer);
 
-    var json_reader = std.json.reader(allocator, reader);
+    var json_reader = std.json.Reader.init(allocator, &reader.interface);
+    var diagnostics = std.json.Diagnostics{};
+    json_reader.enableDiagnostics(&diagnostics);
     defer json_reader.deinit();
 
     const json = std.json.parseFromTokenSource(ScenesJson, allocator, &json_reader, .{}) catch {
-        map_out.setError("ReadScenes: Unable to parse the scene json data.");
+        const message = std.fmt.allocPrintSentinel(allocator, //
+            "ReadScenes: Unable to parse json - error parsing line {d}, column {d}", //
+            .{ diagnostics.getLine(), diagnostics.getColumn() }, 0) catch unreachable;
+
+        map_out.setError(message);
         zapi.freeNode(d.node);
         return;
     };
@@ -127,7 +134,7 @@ export fn readScenesCreate(in: ?*const vs.Map, out: ?*vs.Map, user_data: ?*anyop
         },
     };
 
-    zapi.createVideoFilter(out, "ReadScenes", d.vi, getFrame, readScenesFree, .Parallel, &deps, data, core);
+    zapi.createVideoFilter(out, "ReadScenes", d.vi, getFrame, readScenesFree, .Parallel, &deps, data);
 }
 
 pub fn registerFunction(plugin: *vs.Plugin, vsapi: *const vs.PLUGINAPI) void {

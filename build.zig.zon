@@ -19,7 +19,7 @@
 
     // Tracks the earliest Zig version that the package considers to be a
     // supported use case.
-    .minimum_zig_version = "0.14.0",
+    .minimum_zig_version = "0.15.2",
 
     // This field is optional.
     // Each dependency must either provide a `url` and `hash`, or a `path`.
@@ -28,8 +28,8 @@
     // internet connectivity.
     .dependencies = .{
         .vapoursynth = .{
-            .url = "git+https://github.com/dnjulek/vapoursynth-zig.git#7cb6779c4e40fb7415def9c60162e86ccd0eaa93",
-            .hash = "vapoursynth-4.0.0-jLYMQw-HAgBK4pMJZBYzTNJuv5uuRlzKqpuY0sd2c_gi",
+            .url = "git+https://github.com/dnjulek/vapoursynth-zig.git#a94152c87e4242a582ec5f30f4d4e890c14e2233",
+            .hash = "vapoursynth-4.0.0-jLYMQw95AgBWLJymsYybHIFxNu7d6shoYn8y8WZfH8T3",
         },
     },
 
