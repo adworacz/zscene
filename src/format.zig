@@ -136,6 +136,7 @@ test readScenes {
 
     scene_data = try readScenes(allocator, jsonfile, .scene_json, &err);
     try std.testing.expectEqualDeep(&expected_scenes, scene_data.scenes);
+    try std.testing.expectEqual(5, scene_data.frame_count);
     scene_data.deinit(allocator);
 
 }
