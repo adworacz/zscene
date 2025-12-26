@@ -26,7 +26,7 @@ pub const SceneData = struct {
         };
     }
 
-    fn deinit(self: *Self, allocator: Allocator) void {
+    pub fn deinit(self: *Self, allocator: Allocator) void {
         allocator.free(self.scenes);
 
         self.scenes = undefined;
@@ -51,7 +51,58 @@ fn readAvSceneJson(allocator: Allocator, file: std.fs.File, err: *[:0]u8) !Scene
     };
     defer json.deinit();
 
-    return SceneData.init(json.value.scene_changes, json.value.frame_count);
+    return SceneData.init(try allocator.dupe(u32,json.value.scene_changes), json.value.frame_count);
+}
+
+fn readQpFile(allocator: Allocator, file: std.fs.File, err: *[:0]u8) !SceneData {
+    var buffer: [1024]u8 = undefined;
+    var file_reader = file.reader(&buffer);
+    const reader = &file_reader.interface;
+
+    var scenes = try std.array_list.Aligned(u32, null).initCapacity(allocator, 100);
+    defer scenes.deinit(allocator);
+
+    // Ensure that the first frame is always marked as a scene change,
+    // since it is, but qpfile writers might omit it.
+    try scenes.append(allocator, 0);
+
+    var line_num: u32 = 1;
+    while (try reader.takeDelimiter('\n')) |line| : (line_num += 1) {
+        var line_iter = std.mem.tokenizeScalar(u8, line, ' ');
+
+        var frame_num: u32 = undefined;
+        var frame_type: u8 = undefined;
+        var elem_count: u8 = 0;
+        while (line_iter.next()) |token| : (elem_count += 1) {
+            switch (elem_count) {
+                0 => {
+                    // frame number is the first token
+                    frame_num = std.fmt.parseUnsigned(u32, token, 10) catch |e| {
+                        err.* = try std.fmt.allocPrintSentinel(allocator, "ReadScenes: Unable to parse line {d} of the scene file", .{line_num}, 0);
+                        return e;
+                    };
+                },
+                1 => {
+                    // frame type is the second token
+                    if (token.len != 1) {
+                        // the frame type should be a single character
+                        err.* = try std.fmt.allocPrintSentinel(allocator, "ReadScenes: Frame type {s} on line {d} is not a single character", .{ token, line_num }, 0);
+                    }
+                    frame_type = token[0];
+                },
+                else => {
+                    // Extra data is on the line
+                    break;
+                },
+            }
+        }
+
+        if (frame_type == 'K' or frame_type == 'I') {
+            try scenes.append(allocator, frame_num);
+        }
+    }
+
+    return SceneData.init(try scenes.toOwnedSlice(allocator), null);
 }
 
 pub fn readScenes(allocator: Allocator, path: []const u8, format: Format, err: *[:0]u8) !SceneData {
@@ -62,7 +113,29 @@ pub fn readScenes(allocator: Allocator, path: []const u8, format: Format, err: *
     defer file.close();
 
     return switch (format) {
-        .scene_json =>  readAvSceneJson(allocator, file, err),
-        else => unreachable,
+        .scene_json => readAvSceneJson(allocator, file, err),
+        .qpfile => readQpFile(allocator, file, err),
     };
+}
+
+test readScenes {
+    const allocator = std.testing.allocator;
+
+    const qpfile = "src/test_scenes.qpfile";
+    const jsonfile = "src/test_scenes.json";
+
+    const expected_scenes = [_]u32{ 0, 1, 2, 4 };
+
+    var err: [:0]u8 = undefined;
+
+    var scene_data: SceneData = undefined;
+    
+    scene_data = try readScenes(allocator, qpfile, .qpfile, &err);
+    try std.testing.expectEqualDeep(&expected_scenes, scene_data.scenes);
+    scene_data.deinit(allocator);
+
+    scene_data = try readScenes(allocator, jsonfile, .scene_json, &err);
+    try std.testing.expectEqualDeep(&expected_scenes, scene_data.scenes);
+    scene_data.deinit(allocator);
+
 }

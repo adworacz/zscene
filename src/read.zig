@@ -1,5 +1,7 @@
 const std = @import("std");
 const vapoursynth = @import("vapoursynth");
+
+const Format = @import("format.zig").Format;
 const readScenes = @import("format.zig").readScenes;
 
 const vs = vapoursynth.vapoursynth4;
@@ -75,13 +77,15 @@ export fn readScenesCreate(in: ?*const vs.Map, out: ?*vs.Map, user_data: ?*anyop
     d.node, d.vi = map_in.getNodeVi("clip").?;
 
     const path = map_in.getData("path", 0) orelse unreachable;
+    const format: Format = @enumFromInt(map_in.getInt(u8, "format") orelse 0);
 
     var err: [:0]u8 = undefined;
-    const scene_data = readScenes(allocator, path, .scene_json, &err) catch {
+    var scene_data = readScenes(allocator, path, format, &err) catch {
         map_out.setError(err);
         zapi.freeNode(d.node);
         return;
     };
+    defer scene_data.deinit(allocator);
 
     d.frames_set = FramesSet{};
     d.frames_set.ensureTotalCapacity(allocator, scene_data.scenes.len) catch {
@@ -108,5 +112,5 @@ export fn readScenesCreate(in: ?*const vs.Map, out: ?*vs.Map, user_data: ?*anyop
 }
 
 pub fn registerFunction(plugin: *vs.Plugin, vsapi: *const vs.PLUGINAPI) void {
-    _ = vsapi.registerFunction.?("ReadScenes", "clip:vnode;path:data", "clip:vnode;", readScenesCreate, null, plugin);
+    _ = vsapi.registerFunction.?("ReadScenes", "clip:vnode;path:data;format:int;", "clip:vnode;", readScenesCreate, null, plugin);
 }
