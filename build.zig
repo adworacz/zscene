@@ -1,13 +1,25 @@
 const std = @import("std");
+const x86 = std.Target.x86;
 
-// Although this function looks imperative, note that its job is to
-// declaratively construct a build graph that will be executed by an external
-// runner.
-pub fn build(b: *std.Build) void {
+const min_glibc_version =  std.SemanticVersion{ .major = 2, .minor = 17, .patch = 0};
+const targets = [_]std.Target.Query{
+    .{ .os_tag = .macos, .cpu_arch = .aarch64 },
+    .{ .os_tag = .macos, .cpu_arch = .x86_64 },
+    .{ .os_tag = .linux, .cpu_arch = .aarch64, .abi = .gnu, .glibc_version = min_glibc_version},
+    .{ .os_tag = .linux, .cpu_arch = .aarch64, .abi = .musl },
+    .{ .os_tag = .linux, .cpu_arch = .x86_64, .cpu_model = std.Target.Query.CpuModel{ .explicit = &x86.cpu.x86_64_v3 }, .abi = .gnu,  .glibc_version = min_glibc_version },
+    .{ .os_tag = .linux, .cpu_arch = .x86_64, .cpu_model = std.Target.Query.CpuModel{ .explicit = &x86.cpu.x86_64_v3 }, .abi = .musl },
+    .{ .os_tag = .linux, .cpu_arch = .x86_64, .cpu_model = std.Target.Query.CpuModel{ .explicit = &x86.cpu.znver4 }, .abi = .gnu, .glibc_version = min_glibc_version},
+    .{ .os_tag = .linux, .cpu_arch = .x86_64, .cpu_model = std.Target.Query.CpuModel{ .explicit = &x86.cpu.znver4 }, .abi = .musl },
+    .{ .os_tag = .windows, .cpu_arch = .x86_64, .cpu_model = std.Target.Query.CpuModel{ .explicit = &x86.cpu.x86_64_v3 } },
+    .{ .os_tag = .windows, .cpu_arch = .x86_64, .cpu_model = std.Target.Query.CpuModel{ .explicit = &x86.cpu.znver4 } },
+};
+
+pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const zscene_module = b.createModule(.{
+    const zscene_module_options: std.Build.Module.CreateOptions = .{
         .root_source_file = b.path("src/zscene.zig"),
 
         .target = target,
@@ -21,9 +33,11 @@ pub fn build(b: *std.Build) void {
         .single_threaded = true,
 
         .strip = optimize == .ReleaseFast,
-    });
+    };
 
-    const lib = b.addLibrary(.{
+    const zscene_module = b.createModule(zscene_module_options);
+
+    const lib_options: std.Build.LibraryOptions = .{
         .name = "zscene",
         .root_module = zscene_module,
 
@@ -32,7 +46,8 @@ pub fn build(b: *std.Build) void {
         .max_rss = 1024 * 1024 * 1024 * 2, // 2GB
 
         .linkage = .dynamic,
-    });
+    };
+    const lib = b.addLibrary(lib_options);
 
     const vapoursynth_dep = b.dependency("vapoursynth", .{
         .target = target,
@@ -52,6 +67,43 @@ pub fn build(b: *std.Build) void {
     check.dependOn(&lib.step);
 
     b.installArtifact(lib);
+
+    // Release (build all platforms)
+    const release = b.step("release", "Build release artifacts for all supported platforms");
+    for (targets) |t| {
+        // copy root module options so we can operate on them separately.
+        var target_root_module_options = zscene_module_options;
+        target_root_module_options.target = b.resolveTargetQuery(t);
+
+        const target_root_module = b.createModule(target_root_module_options);
+        target_root_module.addImport("vapoursynth", vapoursynth_dep.module("vapoursynth"));
+
+        // copy lib options so we can operate on them separately.
+        var target_lib_options = lib_options;
+        target_lib_options.root_module = target_root_module;
+
+        const release_lib = b.addLibrary(target_lib_options);
+
+        release_lib.linkLibC(); // Necessary to use the C memory allocator.
+
+        const cpu_model_name = switch (t.cpu_model) {
+            .baseline => "baseline",
+            .determined_by_arch_os => "default",
+            .native => "native",
+            .explicit => t.cpu_model.explicit.name,
+        };
+        const output_dir = try std.fmt.allocPrint(b.allocator, "{s}-{s}", .{ try t.zigTriple(b.allocator), cpu_model_name });
+
+        const target_output = b.addInstallArtifact(release_lib, .{
+            .dest_dir = .{ //
+                .override = .{ //
+                    .custom = output_dir,
+                },
+            },
+        });
+
+        release.dependOn(&target_output.step);
+    }
 
     // Creates a step for unit testing. This only builds the test executable
     // but does not run it.
