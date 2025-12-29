@@ -12,7 +12,7 @@ to each frame.
 
 | Format | Format Code | Description |
 | ---    | ---         | ---         |
-| JSON   | 0           | JSON files produced by av-scenechange. The JSON must have the `scene_changes` and `frame_count` fields. |
+| JSON   | 0           | JSON files produced by [av-scenechange](https://github.com/rust-av/av-scenechange). The JSON must have the `scene_changes` and `frame_count` fields. |
 | QP File| 1           | Text files with frame numbers listed on new lines. Often used with x264 or x265 and their [`--qpfile`](https://x265.readthedocs.io/en/master/cli.html#cmdoption-qpfile) parameters. Scenes will be marked as scene changes if they have a `K` or `I` (but not `i`) frame type, or if the frame type is omitted completely.|
 
 Feel free to open an issue to request scene file formats.
