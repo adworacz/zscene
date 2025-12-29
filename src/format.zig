@@ -48,7 +48,7 @@ fn readAvSceneJson(allocator: Allocator, reader: *std.Io.Reader, err: *[:0]u8) !
     };
     defer json.deinit();
 
-    return SceneData.init(try allocator.dupe(u32,json.value.scene_changes), json.value.frame_count);
+    return SceneData.init(try allocator.dupe(u32, json.value.scene_changes), json.value.frame_count);
 }
 
 fn readQpFile(allocator: Allocator, reader: *std.Io.Reader, err: *[:0]u8) !SceneData {
@@ -59,6 +59,7 @@ fn readQpFile(allocator: Allocator, reader: *std.Io.Reader, err: *[:0]u8) !Scene
     // since it is, but qpfile writers might omit it.
     try scenes.append(allocator, 0);
 
+    // Line numbers in a file start from '1', not zero.
     var line_num: u32 = 1;
     while (try reader.takeDelimiter('\n')) |line| : (line_num += 1) {
         var line_iter = std.mem.tokenizeScalar(u8, line, ' ');
@@ -67,6 +68,11 @@ fn readQpFile(allocator: Allocator, reader: *std.Io.Reader, err: *[:0]u8) !Scene
         var frame_type: u8 = undefined;
         var elem_count: u8 = 0;
         while (line_iter.next()) |token| : (elem_count += 1) {
+            // We handle files without a listed frame type (just a frame number)
+            // by defaulting the frame type to 'K'.
+            // This will be overridden in the switch below if a real frame type is specified.
+            frame_type = 'K';
+
             switch (elem_count) {
                 0 => {
                     // frame number is the first token
@@ -80,6 +86,7 @@ fn readQpFile(allocator: Allocator, reader: *std.Io.Reader, err: *[:0]u8) !Scene
                     if (token.len != 1) {
                         // the frame type should be a single character
                         err.* = try std.fmt.allocPrintSentinel(allocator, "ReadScenes: Frame type {s} on line {d} is not a single character", .{ token, line_num }, 0);
+                        return error.InvalidFrameType;
                     }
                     frame_type = token[0];
                 },
@@ -119,6 +126,7 @@ test readScenes {
     const allocator = std.testing.allocator;
 
     const qpfile = "src/test_scenes.qpfile";
+    const qpfile_no_frametype = "src/test_scenes_no_frametype.qpfile";
     const jsonfile = "src/test_scenes.json";
 
     const expected_scenes = [_]u32{ 0, 1, 2, 4 };
@@ -126,8 +134,12 @@ test readScenes {
     var err: [:0]u8 = undefined;
 
     var scene_data: SceneData = undefined;
-    
+
     scene_data = try readScenes(allocator, qpfile, .qpfile, &err);
+    try std.testing.expectEqualDeep(&expected_scenes, scene_data.scenes);
+    scene_data.deinit(allocator);
+
+    scene_data = try readScenes(allocator, qpfile_no_frametype, .qpfile, &err);
     try std.testing.expectEqualDeep(&expected_scenes, scene_data.scenes);
     scene_data.deinit(allocator);
 
@@ -135,5 +147,4 @@ test readScenes {
     try std.testing.expectEqualDeep(&expected_scenes, scene_data.scenes);
     try std.testing.expectEqual(5, scene_data.frame_count);
     scene_data.deinit(allocator);
-
 }
