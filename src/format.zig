@@ -34,11 +34,8 @@ pub const SceneData = struct {
     }
 };
 
-fn readAvSceneJson(allocator: Allocator, file: std.fs.File, err: *[:0]u8) !SceneData {
-    var buffer: [1024]u8 = undefined;
-    var reader = file.reader(&buffer);
-
-    var json_reader = std.json.Reader.init(allocator, &reader.interface);
+fn readAvSceneJson(allocator: Allocator, reader: *std.Io.Reader, err: *[:0]u8) !SceneData {
+    var json_reader = std.json.Reader.init(allocator, reader);
     var diagnostics = std.json.Diagnostics{};
     json_reader.enableDiagnostics(&diagnostics);
     defer json_reader.deinit();
@@ -54,11 +51,7 @@ fn readAvSceneJson(allocator: Allocator, file: std.fs.File, err: *[:0]u8) !Scene
     return SceneData.init(try allocator.dupe(u32,json.value.scene_changes), json.value.frame_count);
 }
 
-fn readQpFile(allocator: Allocator, file: std.fs.File, err: *[:0]u8) !SceneData {
-    var buffer: [1024]u8 = undefined;
-    var file_reader = file.reader(&buffer);
-    const reader = &file_reader.interface;
-
+fn readQpFile(allocator: Allocator, reader: *std.Io.Reader, err: *[:0]u8) !SceneData {
     var scenes = try std.array_list.Aligned(u32, null).initCapacity(allocator, 100);
     defer scenes.deinit(allocator);
 
@@ -112,9 +105,13 @@ pub fn readScenes(allocator: Allocator, path: []const u8, format: Format, err: *
     };
     defer file.close();
 
+    var buffer: [1024]u8 = undefined;
+    var file_reader = file.reader(&buffer);
+    const reader = &file_reader.interface;
+
     return switch (format) {
-        .scene_json => readAvSceneJson(allocator, file, err),
-        .qpfile => readQpFile(allocator, file, err),
+        .scene_json => readAvSceneJson(allocator, reader, err),
+        .qpfile => readQpFile(allocator, reader, err),
     };
 }
 
