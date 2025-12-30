@@ -83,11 +83,9 @@ fn readQpFile(allocator: Allocator, reader: *std.Io.Reader, err: *[:0]u8) !Scene
                 },
                 1 => {
                     // frame type is the second token
-                    if (token.len != 1) {
-                        // the frame type should be a single character
-                        err.* = try std.fmt.allocPrintSentinel(allocator, "ReadScenes: Frame type {s} on line {d} is not a single character", .{ token, line_num }, 0);
-                        return error.InvalidFrameType;
-                    }
+                    //
+                    // Take the first character. 
+                    // Other characters may be line endings (like '\r' on windows) or other gibberish.
                     frame_type = token[0];
                 },
                 else => {
@@ -126,6 +124,7 @@ test readScenes {
     const allocator = std.testing.allocator;
 
     const qpfile = "src/test_scenes.qpfile";
+    const qpfile_windows = "src/test_scenes_windows.qpfile"; // windows line endings (\r\n)
     const qpfile_no_frametype = "src/test_scenes_no_frametype.qpfile";
     const jsonfile = "src/test_scenes.json";
 
@@ -136,6 +135,10 @@ test readScenes {
     var scene_data: SceneData = undefined;
 
     scene_data = try readScenes(allocator, qpfile, .qpfile, &err);
+    try std.testing.expectEqualDeep(&expected_scenes, scene_data.scenes);
+    scene_data.deinit(allocator);
+
+    scene_data = try readScenes(allocator, qpfile_windows, .qpfile, &err);
     try std.testing.expectEqualDeep(&expected_scenes, scene_data.scenes);
     scene_data.deinit(allocator);
 
