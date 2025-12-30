@@ -1,6 +1,9 @@
 # Changelog
 
-## 0.3 - TBD
+## 0.4 - TBD
+
+## 0.3
+* Fixed handling of windows line endings with qpfiles, per https://github.com/adworacz/zscene/issues/2
 
 ## 0.2
 * Add QP file support, per https://github.com/adworacz/zscene/issues/1
