@@ -84,6 +84,7 @@ pub fn build(b: *std.Build) !void {
 
         const target_root_module = b.createModule(target_root_module_options);
         target_root_module.addImport("vapoursynth", vapoursynth_dep.module("vapoursynth"));
+        target_root_module.addOptions("config", options);
 
         // copy lib options so we can operate on them separately.
         var target_lib_options = lib_options;
