@@ -5,6 +5,22 @@
     2,
     4
   ],
+  "scores": {
+    "1": {
+      "inter_cost": 10.457407407407407,
+      "imp_block_cost": 0.11660493827160494,
+      "backward_adjusted_cost": 0.0,
+      "forward_adjusted_cost": 0.0,
+      "threshold": 224.1274166666667
+    },
+    "2": {
+      "inter_cost": 12.557962962962963,
+      "imp_block_cost": 0.1354320987654321,
+      "backward_adjusted_cost": 2.1005555555555553,
+      "forward_adjusted_cost": 0.0,
+      "threshold": 224.13336111111116
+    }
+  },
   "frame_count": 5,
   "speed": 1.0
 }

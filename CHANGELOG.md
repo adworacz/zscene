@@ -1,6 +1,8 @@
 # Changelog
 
-## 0.4 - TBD
+## 0.4
+* Make av-scenechange JSON parsing more lenient, as they added some new fields in the latest version of the CLI that we
+don't need.
 
 ## 0.3
 * Fixed handling of windows line endings with qpfiles, per https://github.com/adworacz/zscene/issues/2

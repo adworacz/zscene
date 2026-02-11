@@ -40,7 +40,7 @@ fn readAvSceneJson(allocator: Allocator, reader: *std.Io.Reader, err: *[:0]u8) !
     json_reader.enableDiagnostics(&diagnostics);
     defer json_reader.deinit();
 
-    const json = std.json.parseFromTokenSource(AvSceneChangeJson, allocator, &json_reader, .{}) catch |e| {
+    const json = std.json.parseFromTokenSource(AvSceneChangeJson, allocator, &json_reader, .{ .ignore_unknown_fields = true }) catch |e| {
         err.* = try std.fmt.allocPrintSentinel(allocator, "ReadScenes: Unable to parse json - error parsing line {d}, column {d}", //
             .{ diagnostics.getLine(), diagnostics.getColumn() }, 0);
 
@@ -84,7 +84,7 @@ fn readQpFile(allocator: Allocator, reader: *std.Io.Reader, err: *[:0]u8) !Scene
                 1 => {
                     // frame type is the second token
                     //
-                    // Take the first character. 
+                    // Take the first character.
                     // Other characters may be line endings (like '\r' on windows) or other gibberish.
                     frame_type = token[0];
                 },
