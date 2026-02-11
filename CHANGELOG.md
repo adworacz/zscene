@@ -1,5 +1,7 @@
 # Changelog
 
+## 0.5 - TBD
+
 ## 0.4
 * Make av-scenechange JSON parsing more lenient, as they added some new fields in the latest version of the CLI that we
 don't need.
