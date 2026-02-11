@@ -1,5 +1,6 @@
 const std = @import("std");
 const x86 = std.Target.x86;
+const zon = @import("build.zig.zon");
 
 const min_glibc_version =  std.SemanticVersion{ .major = 2, .minor = 17, .patch = 0};
 const targets = [_]std.Target.Query{
@@ -16,8 +17,17 @@ const targets = [_]std.Target.Query{
 };
 
 pub fn build(b: *std.Build) !void {
+    ensureZigVersion(try .parse(zon.minimum_zig_version)) catch return;
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+
+    const options = b.addOptions();
+    options.addOption(std.SemanticVersion, "version", try .parse(zon.version));
+
+    const vapoursynth_dep = b.dependency("vapoursynth", .{
+        .target = target,
+        .optimize = optimize,
+    });
 
     const zscene_module_options: std.Build.Module.CreateOptions = .{
         .root_source_file = b.path("src/zscene.zig"),
@@ -36,6 +46,8 @@ pub fn build(b: *std.Build) !void {
     };
 
     const zscene_module = b.createModule(zscene_module_options);
+    zscene_module.addImport("vapoursynth", vapoursynth_dep.module("vapoursynth"));
+    zscene_module.addOptions("config", options);
 
     const lib_options: std.Build.LibraryOptions = .{
         .name = "zscene",
@@ -49,12 +61,7 @@ pub fn build(b: *std.Build) !void {
     };
     const lib = b.addLibrary(lib_options);
 
-    const vapoursynth_dep = b.dependency("vapoursynth", .{
-        .target = target,
-        .optimize = optimize,
-    });
 
-    lib.root_module.addImport("vapoursynth", vapoursynth_dep.module("vapoursynth"));
     lib.linkLibC(); // Necessary to use the C memory allocator.
 
     // Add check step for quick n easy build checking without
@@ -120,4 +127,27 @@ pub fn build(b: *std.Build) !void {
     // running the unit tests.
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_lib_unit_tests.step);
+}
+
+fn ensureZigVersion(min_zig_version: std.SemanticVersion) !void {
+    var installed_ver = @import("builtin").zig_version;
+    installed_ver.build = null;
+
+    if (installed_ver.order(min_zig_version) == .lt) {
+        std.log.err("\n" ++
+            \\---------------------------------------------------------------------------
+            \\
+            \\Installed Zig compiler version is too old.
+            \\
+            \\Min. required version: {any}
+            \\Installed version: {any}
+            \\
+            \\Please install newer version and try again.
+            \\Latest version can be found here: https://ziglang.org/download/
+            \\
+            \\---------------------------------------------------------------------------
+            \\
+        , .{ min_zig_version, installed_ver });
+        return error.ZigIsTooOld;
+    }
 }
