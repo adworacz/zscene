@@ -6,14 +6,14 @@ const min_glibc_version =  std.SemanticVersion{ .major = 2, .minor = 17, .patch 
 const targets = [_]std.Target.Query{
     .{ .os_tag = .macos, .cpu_arch = .aarch64 },
     .{ .os_tag = .macos, .cpu_arch = .x86_64 },
-    .{ .os_tag = .linux, .cpu_arch = .aarch64, .abi = .gnu, .glibc_version = min_glibc_version},
+    .{ .os_tag = .linux, .cpu_arch = .aarch64, .abi = .gnu, .glibc_version = min_glibc_version },
     .{ .os_tag = .linux, .cpu_arch = .aarch64, .abi = .musl },
-    .{ .os_tag = .linux, .cpu_arch = .x86_64, .cpu_model = std.Target.Query.CpuModel{ .explicit = &x86.cpu.x86_64_v3 }, .abi = .gnu,  .glibc_version = min_glibc_version },
-    .{ .os_tag = .linux, .cpu_arch = .x86_64, .cpu_model = std.Target.Query.CpuModel{ .explicit = &x86.cpu.x86_64_v3 }, .abi = .musl },
-    .{ .os_tag = .linux, .cpu_arch = .x86_64, .cpu_model = std.Target.Query.CpuModel{ .explicit = &x86.cpu.znver4 }, .abi = .gnu, .glibc_version = min_glibc_version},
-    .{ .os_tag = .linux, .cpu_arch = .x86_64, .cpu_model = std.Target.Query.CpuModel{ .explicit = &x86.cpu.znver4 }, .abi = .musl },
-    .{ .os_tag = .windows, .cpu_arch = .x86_64, .cpu_model = std.Target.Query.CpuModel{ .explicit = &x86.cpu.x86_64_v3 } },
-    .{ .os_tag = .windows, .cpu_arch = .x86_64, .cpu_model = std.Target.Query.CpuModel{ .explicit = &x86.cpu.znver4 } },
+    .{ .os_tag = .linux, .cpu_arch = .x86_64, .cpu_model = std.Target.Query.CpuModel{ .explicit = &x86.cpu.haswell }, .abi = .gnu, .glibc_version = min_glibc_version },
+    .{ .os_tag = .linux, .cpu_arch = .x86_64, .cpu_model = std.Target.Query.CpuModel{ .explicit = &x86.cpu.haswell }, .abi = .musl },
+    .{ .os_tag = .linux, .cpu_arch = .x86_64, .cpu_model = std.Target.Query.CpuModel{ .explicit = &x86.cpu.znver4 }, .cpu_features_sub = x86.featureSet(&[_]x86.Feature{.sse4a}), .abi = .gnu, .glibc_version = min_glibc_version },
+    .{ .os_tag = .linux, .cpu_arch = .x86_64, .cpu_model = std.Target.Query.CpuModel{ .explicit = &x86.cpu.znver4 }, .cpu_features_sub = x86.featureSet(&[_]x86.Feature{.sse4a}), .abi = .musl },
+    .{ .os_tag = .windows, .cpu_arch = .x86_64, .cpu_model = std.Target.Query.CpuModel{ .explicit = &x86.cpu.haswell } },
+    .{ .os_tag = .windows, .cpu_arch = .x86_64, .cpu_model = std.Target.Query.CpuModel{ .explicit = &x86.cpu.znver4 }, .cpu_features_sub = x86.featureSet(&[_]x86.Feature{.sse4a}) },
 };
 
 pub fn build(b: *std.Build) !void {
