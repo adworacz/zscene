@@ -1,4 +1,5 @@
 const std = @import("std");
+const Io = std.Io;
 const vapoursynth = @import("vapoursynth");
 
 const Format = @import("format.zig").Format;
@@ -15,7 +16,8 @@ const ZAPI = vapoursynth.ZAPI;
 
 const allocator = std.heap.c_allocator;
 
-const FramesSet = std.array_hash_map.AutoArrayHashMapUnmanaged(u32, void);
+// const FramesSet = std.array_hash_map.AutoArrayHashMapUnmanaged(u32, void);
+const FramesSet = std.array_hash_map.Auto(u32, void);
 
 const ReadScenesData = struct {
     // The clip on which we are operating.
@@ -68,6 +70,10 @@ const ScenesJson = struct {
 
 export fn readScenesCreate(in: ?*const vs.Map, out: ?*vs.Map, user_data: ?*anyopaque, core: ?*vs.Core, vsapi: ?*const vs.API) callconv(.c) void {
     _ = user_data;
+
+    var threaded: Io.Threaded = .init_single_threaded; 
+    const io = threaded.io();
+
     var d: ReadScenesData = undefined;
 
     const zapi = ZAPI.init(vsapi, core, null);
@@ -80,14 +86,14 @@ export fn readScenesCreate(in: ?*const vs.Map, out: ?*vs.Map, user_data: ?*anyop
     const format: Format = @enumFromInt(map_in.getInt(u8, "format") orelse 0);
 
     var err: [:0]u8 = undefined;
-    var scene_data = readScenes(allocator, path, format, &err) catch {
+    var scene_data = readScenes(allocator, io, path, format, &err) catch {
         map_out.setError(err);
         zapi.freeNode(d.node);
         return;
     };
     defer scene_data.deinit(allocator);
 
-    d.frames_set = FramesSet{};
+    d.frames_set = .empty;
     d.frames_set.ensureTotalCapacity(allocator, scene_data.scenes.len) catch {
         map_out.setError("ReadScenes: Unable to allocate space for frame set.");
         zapi.freeNode(d.node);

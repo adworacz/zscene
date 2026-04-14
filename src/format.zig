@@ -1,5 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const Io = std.Io;
 
 pub const Format = enum(u8) {
     scene_json = 0, // AV Scene Json
@@ -103,15 +104,15 @@ fn readQpFile(allocator: Allocator, reader: *std.Io.Reader, err: *[:0]u8) !Scene
     return SceneData.init(try scenes.toOwnedSlice(allocator), null);
 }
 
-pub fn readScenes(allocator: Allocator, path: []const u8, format: Format, err: *[:0]u8) !SceneData {
-    const file = std.fs.cwd().openFile(path, .{ .mode = .read_only }) catch |e| {
+pub fn readScenes(allocator: Allocator, io: Io, path: []const u8, format: Format, err: *[:0]u8) !SceneData {
+    const file = std.Io.Dir.cwd().openFile(io, path, .{.mode = .read_only}) catch |e| {
         err.* = try std.fmt.allocPrintSentinel(allocator, "ReadScenes: Unable to open file {s}", .{path}, 0);
         return e;
     };
-    defer file.close();
+    defer file.close(io);
 
     var buffer: [1024]u8 = undefined;
-    var file_reader = file.reader(&buffer);
+    var file_reader = file.reader(io, &buffer);
     const reader = &file_reader.interface;
 
     return switch (format) {
@@ -122,6 +123,7 @@ pub fn readScenes(allocator: Allocator, path: []const u8, format: Format, err: *
 
 test readScenes {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
 
     const qpfile = "src/test_scenes.qpfile";
     const qpfile_windows = "src/test_scenes_windows.qpfile"; // windows line endings (\r\n)
@@ -134,19 +136,19 @@ test readScenes {
 
     var scene_data: SceneData = undefined;
 
-    scene_data = try readScenes(allocator, qpfile, .qpfile, &err);
+    scene_data = try readScenes(allocator, io, qpfile, .qpfile, &err);
     try std.testing.expectEqualDeep(&expected_scenes, scene_data.scenes);
     scene_data.deinit(allocator);
 
-    scene_data = try readScenes(allocator, qpfile_windows, .qpfile, &err);
+    scene_data = try readScenes(allocator, io, qpfile_windows, .qpfile, &err);
     try std.testing.expectEqualDeep(&expected_scenes, scene_data.scenes);
     scene_data.deinit(allocator);
 
-    scene_data = try readScenes(allocator, qpfile_no_frametype, .qpfile, &err);
+    scene_data = try readScenes(allocator, io, qpfile_no_frametype, .qpfile, &err);
     try std.testing.expectEqualDeep(&expected_scenes, scene_data.scenes);
     scene_data.deinit(allocator);
 
-    scene_data = try readScenes(allocator, jsonfile, .scene_json, &err);
+    scene_data = try readScenes(allocator, io, jsonfile, .scene_json, &err);
     try std.testing.expectEqualDeep(&expected_scenes, scene_data.scenes);
     try std.testing.expectEqual(5, scene_data.frame_count);
     scene_data.deinit(allocator);

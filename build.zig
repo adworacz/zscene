@@ -43,6 +43,9 @@ pub fn build(b: *std.Build) !void {
         .single_threaded = true,
 
         .strip = optimize == .ReleaseFast,
+
+        // Necessary to use the C memory allocator.
+        .link_libc = true,
     };
 
     const zscene_module = b.createModule(zscene_module_options);
@@ -60,9 +63,6 @@ pub fn build(b: *std.Build) !void {
         .linkage = .dynamic,
     };
     const lib = b.addLibrary(lib_options);
-
-
-    lib.linkLibC(); // Necessary to use the C memory allocator.
 
     // Add check step for quick n easy build checking without
     // emitting binary output.
@@ -92,8 +92,6 @@ pub fn build(b: *std.Build) !void {
 
         const release_lib = b.addLibrary(target_lib_options);
 
-        release_lib.linkLibC(); // Necessary to use the C memory allocator.
-
         const cpu_model_name = switch (t.cpu_model) {
             .baseline => "baseline",
             .determined_by_arch_os => "default",
@@ -120,7 +118,6 @@ pub fn build(b: *std.Build) !void {
     });
 
     lib_unit_tests.root_module.addImport("vapoursynth", vapoursynth_dep.module("vapoursynth"));
-    lib_unit_tests.linkLibC();
     const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
 
     // Similar to creating the run step earlier, this exposes a `test` step to
