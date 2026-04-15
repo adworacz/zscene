@@ -5,3 +5,4 @@ zig-pkg/
 .vsjet/
 build/
 dist/
+.mise/
