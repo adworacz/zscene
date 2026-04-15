@@ -4,6 +4,14 @@
 
 # Zscene
 
+## Installation
+Downloads are available from the [releases](https://github.com/adworacz/zscene/releases) page, which should be placed in
+your plugins folder, or if you're using Vapoursynth 74+, you can use `pip` to install via PyPi:
+
+```
+pip install vapoursynth-zscene
+```
+
 ## ReadScene
 ```python
 core.zscene.ReadScenes(path=string, format=int)
