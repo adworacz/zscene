@@ -2,6 +2,7 @@
 
 ## 0.5
 * Upgrade to Zig 0.16.0
+* Make packages available on PyPi, supporting `pip install vapoursynth-zscene`
 
 ## 0.4
 * Make av-scenechange JSON parsing more lenient, as they added some new fields in the latest version of the CLI that we
