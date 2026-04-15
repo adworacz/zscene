@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "vapoursynth-zscene"
-description = "Scene change detection for Vaopursynth"
+description = "Scene change detection for Vapoursynth"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.12"
